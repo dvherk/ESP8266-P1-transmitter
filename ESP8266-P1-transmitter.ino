@@ -1,17 +1,16 @@
 #include <Time.h>
 #include <ESP8266mDNS.h>
-#include <DHT.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
-#include <SoftwareSerial.h>
+//#include <SoftwareSerial.h>
 #include "Base64.h"
 #include "CRC16.h"
  
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////        !!PLEASE CHANGE THESE!!
-String ssid    = "WiFi SSID";
-String password = "WiFi Password";
+String ssid    = "";
+String password = "";
 
 String espName    = "esp-P1";
 
@@ -19,37 +18,25 @@ String espName    = "esp-P1";
 ESP8266WebServer  server(80);
 MDNSResponder   mdns;
 
-const char* APssid = "ESPap";
-const char* APpassword = "123456789";
-
-
+const char* APssid = "espAP";
+const char* APpassword = "0123456789";
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////         GLOBAL VARIABLES
 long    lastInterval  = 0;
 const int httpPort    = 80;
-float   temperature   = 0.0;
-float   humidity    = 0.0;
-
-String deviceType   = "DHT22";
 long sendInterval   = 10000; //in millis
 
-String Username     = "sensors";
-String Password     = "iamasensor";
+String Username     = "esp";
+String Password     = "esp";
 
 char authVal[40];  
 char authValEncoded[40];
 
-String host   = "192.168.0.115";
+String host   = "172.16.1.103";
 
 String ClientIP;
 // send data
 WiFiClient client;
-
-
-//uint8_t DHTPIN = 2;  //data pin, GPIO2
-//uint8_t DHTTYPE = DHT22;
-
-DHT dht(2, DHT22, 20);
 
 
 // Vars to store meter readings
@@ -65,10 +52,6 @@ float prevGAS = 0;
 
 #define MAXLINELENGTH 128 // longest normal line is 47 char (+3 for \r\n\0)
 char telegram[MAXLINELENGTH];
-
-// Uncomment this block to use SoftSerial
-//#define SERIAL_RX     D5  // pin for SoftwareSerial RX
-//SoftwareSerial mySerial(SERIAL_RX, -1, true, MAXLINELENGTH); // (RX, TX. inverted, buffer)
 
 unsigned int currentCRC=0;
 const bool outputOnSerial = true;
@@ -116,24 +99,20 @@ void handle_root() {
   delay(500);
   
   String title1     = panelHeaderName + String("Sensor Data") + panelHeaderEnd;
-  String Humidity   = panelBodySymbol + String("tint") + panelBodyName + String("Humidity") + panelBodyValue + humidity + String("%") + panelBodyEnd;
-  String Temperature    = panelBodySymbol + String("fire") + panelBodyName + String("Temperature") + panelBodyValue + temperature + String("°C") + panelBodyEnd + panelEnd;
   
   String title2     = panelHeaderName + String("Client Settings") + panelHeaderEnd;
   String IPAddClient    = panelBodySymbol + String("globe") + panelBodyName + String("IP Address") + panelBodyValue + ClientIP + panelBodyEnd;
   String DeviceType   = panelBodySymbol + String("scale") + panelBodyName + String("Device Type") + panelBodyValue + deviceType + panelBodyEnd;
   String ClientName   = panelBodySymbol + String("tag") + panelBodyName + String("Client Name") + panelBodyValue + espName + panelBodyEnd;
   String Interval   = panelBodySymbol + String("hourglass") + panelBodyName + String("Interval") + panelBodyValue + sendInterval + String(" millis") + panelBodyEnd;
-  String Uptime     = panelBodySymbol + String("time") + panelBodyName + String("Uptime") + panelBodyValue + hour() + String(" h ") + minute() + String(" min ") + second() + String(" sec") + panelBodyEnd + panelEnd;
   
   String title3     = panelHeaderName + String("Server Settings") + panelHeaderEnd;
   String IPAddServ    = panelBodySymbol + String("globe") + panelBodyName + String("IP Address") + panelBodyValue + host + panelBodyEnd;
   String User     = panelBodySymbol + String("user") + panelBodyName + String("Username") + panelBodyValue + Username + panelBodyEnd + panelEnd;
   
   
-  //String data = title1 + Humidity + Temperature + title2 + IPAddClient + DeviceType + ClientName + Interval + Uptime + title3 + IPAddServ + User;
   //server.send ( 200, "text/html", header + navbar + containerStart + data + containerEnd + siteEnd );
-   server.send ( 200, "text/html", header + navbar + containerStart + title1 + Humidity + Temperature + title2 + IPAddClient + DeviceType + ClientName + Interval + Uptime + title3 + IPAddServ + User + containerEnd + siteEnd);
+   server.send ( 200, "text/html", header + navbar + containerStart + title1 + title2 + IPAddClient + DeviceType + ClientName + Interval + title3 + IPAddServ + User + containerEnd + siteEnd);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////         CONFIG - Client
@@ -193,31 +172,7 @@ void handle_serconf() {
   
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////         LANDING
-/*
-void landing() {
-  
-  String payload=server.arg("wifiname");
-  if (payload.length() > 0 ) {
-    ssid = payload;
-  }
-  Serial.println(payload);
-  payload=server.arg("wifipass");
-  if (payload.length() > 0 ) {
-    password = payload;
-  }
-  Serial.println(payload);
-  
-  payload=server.arg("devicename");
-  if (payload.length() > 0 ) {
-    espName = payload;
-  }
-  Serial.println(payload);
-  
-  String landing = header + landingNav + landingStartPartA + landingStartPartB + landingStartPartC + landingEnd;
-  server.send ( 200, "text/html", landing);
-}
-*/
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////         SEND DATA
 bool send_data(float data, String sensorname) {
   
@@ -289,7 +244,6 @@ void UpdateElectricity()
 {
   char sFloatString[16];
 //  sprintf(sValue, "%d;%d;%d;%d;%d;%d", mEVLT, mEVHT, mEOLT, mEOHT, mEAV, mEAT);
-//  SendToDomo(domoticzEneryIdx, 0, sValue);
 //  dtostrf(mEVLT,9,3,sFloatString);
   send_data(mEVLT,"mEVLT");
 //  dtostrf(mEVHT,9,3,sFloatString);
@@ -437,25 +391,6 @@ bool decodeTelegram(int len) {
   return validCRCFound;
 }
 
-// uncomment this block to use SoftSerial
-/* 
-void readTelegramSoftSerial() {
-  if (mySerial.available()) {
-    memset(telegram, 0, sizeof(telegram));
-    while (mySerial.available()) {
-      int len = mySerial.readBytesUntil('\n', telegram, MAXLINELENGTH);
-      telegram[len] = '\n';
-      telegram[len+1] = 0;
-      yield();
-      if(decodeTelegram(len+1))
-      {
-         UpdateElectricity();
-         UpdateGas();
-      }
-    } 
-  }
-}
-*/
 
 // Comment or delete this block to disable use of hardware serial
 void readTelegram() {
@@ -509,7 +444,7 @@ void setup(void)
       }
       server.begin();
       Serial.println("HTTP server started");
-      dht.begin();
+
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////           MAIN 
 void loop(void)
@@ -520,7 +455,7 @@ void loop(void)
 //      lastInterval = millis();
 //    }
   readTelegram();
-  //readTelegramSoftSerial();
+
   server.handleClient();
   
 } 
